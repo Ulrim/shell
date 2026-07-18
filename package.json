@@ -2,10 +2,13 @@
   "name": "shell",
   "private": true,
   "scripts": {
-    "dev": "wrangler pages dev . --kv BENCH_KV",
-    "deploy": "wrangler pages deploy ."
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
   },
   "devDependencies": {
-    "wrangler": "^3.90.0"
+    "vercel": "^37.0.0"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0"
   }
 }
