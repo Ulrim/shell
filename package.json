@@ -1,0 +1,11 @@
+{
+  "name": "shell",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler pages dev . --kv BENCH_KV",
+    "deploy": "wrangler pages deploy ."
+  },
+  "devDependencies": {
+    "wrangler": "^3.90.0"
+  }
+}

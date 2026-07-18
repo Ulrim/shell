@@ -1,0 +1,11 @@
+name = "shell"
+compatibility_date = "2024-01-01"
+pages_build_output_dir = "."
+
+# Local dev: `npx wrangler pages dev . --kv BENCH_KV` binds an in-memory
+# KV store automatically, no id needed. For production, create a real KV
+# namespace and bind it in the Cloudflare Pages dashboard (or below) —
+# see README.md.
+[[kv_namespaces]]
+binding = "BENCH_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"

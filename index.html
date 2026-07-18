@@ -839,17 +839,17 @@ document.querySelectorAll('.chips').forEach(box=>{
     });
   });
 });
-function renderAvg(list){
+function renderAvg(summary){
   const rows=document.getElementById('avg-rows'); rows.innerHTML='';
+  const averages=(summary&&summary.averages)||{};
   KEYS.forEach(({k,n})=>{
-    const vals=list.map(r=>r[k]).filter(v=>typeof v==='number');
-    const avg=vals.length?vals.reduce((a,b)=>a+b,0)/vals.length:0;
+    const avg=typeof averages[k]==='number'?averages[k]:0;
     const row=document.createElement('div'); row.className='avg-row';
     row.innerHTML='<span>'+n+'</span><span class="avg-bar"><i></i></span><b>'+avg.toFixed(1)+'</b>';
     rows.appendChild(row);
     requestAnimationFrame(()=>{ row.querySelector('i').style.width=(avg/5*100)+'%'; });
   });
-  document.getElementById('avg-h').textContent='지금까지 모인 응답 '+list.length+'건의 평균';
+  document.getElementById('avg-h').textContent='지금까지 모인 응답 '+((summary&&summary.count)||0)+'건의 평균';
 }
 document.getElementById('submit').addEventListener('click', async ()=>{
   const missing=KEYS.find(({k})=>!answers[k]);
@@ -861,19 +861,27 @@ document.getElementById('submit').addEventListener('click', async ()=>{
   const record=Object.assign({},answers,{
     channel:multi.channel, use:multi.use,
     opinion:document.getElementById('opinion').value.trim(),
-    age:document.getElementById('age').value, place:document.getElementById('place').value,
-    at:new Date().toISOString()
+    age:document.getElementById('age').value, place:document.getElementById('place').value
   });
   const btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='보내는 중…';
-  let all=[record];
+  let summary={count:1,averages:Object.fromEntries(KEYS.map(({k})=>[k,record[k]]))};
+  let failed=false;
   try{
-    const STORE_KEY='bench:responses';
-    const prior=JSON.parse(localStorage.getItem(STORE_KEY)||'[]');
-    all=prior.concat([record]).slice(-200);
-    localStorage.setItem(STORE_KEY, JSON.stringify(all));
-  }catch(e){}
+    const res=await fetch('/api/responses',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(record)
+    });
+    if(res.ok){ summary=await res.json(); } else { failed=true; }
+  }catch(e){ failed=true; }
+  btn.disabled=false; btn.textContent='응답 보내기';
+  if(failed){
+    document.getElementById('err').textContent='응답을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.';
+    document.getElementById('err').classList.add('on');
+    return;
+  }
   document.getElementById('formview').style.display='none';
-  const done=document.getElementById('done'); done.classList.add('on'); renderAvg(all);
+  const done=document.getElementById('done'); done.classList.add('on'); renderAvg(summary);
   done.scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});
 });
 </script>
