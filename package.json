@@ -1,0 +1,14 @@
+{
+  "name": "shell",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0"
+  }
+}
