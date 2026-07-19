@@ -283,6 +283,9 @@ textarea,select{width:100%;font-family:inherit;font-size:14.5px;color:var(--ink)
 .avg-bar{height:8px;background:var(--shell);border-radius:99px;overflow:hidden}
 .avg-bar i{display:block;height:100%;width:0;background:var(--sage);border-radius:99px;transition:width 1s cubic-bezier(.2,.8,.3,1)}
 .avg-row b{font-family:var(--d);color:var(--forest);text-align:right}
+.opinion-echo{margin-top:18px;padding-top:18px;border-top:1px solid var(--line);font-size:14px;
+  color:var(--ink);white-space:pre-wrap}
+.opinion-echo:empty{display:none}
 
 footer{background:var(--deep);color:#8FA283;padding:0 0 46px;font-size:12.5px}
 .foot{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;align-items:center;
@@ -706,7 +709,7 @@ footer{background:var(--deep);color:#8FA283;padding:0 0 46px;font-size:12.5px}
         <div class="ad"></div>
         <h3>응답 고맙습니다</h3>
         <p>보내주신 의견은 다음 벤치의 높이와 곡선에 그대로 반영됩니다.</p>
-        <div class="avg"><h4 id="avg-h">지금까지 모인 응답의 평균</h4><div id="avg-rows"></div></div>
+        <div class="avg"><h4 id="avg-h">회원님이 남겨주신 답변</h4><div id="avg-rows"></div><p id="opinion-echo" class="opinion-echo"></p></div>
       </div>
     </div>
   </div>
@@ -848,17 +851,16 @@ document.querySelectorAll('.chips').forEach(box=>{
     });
   });
 });
-function renderAvg(summary){
+function renderMine(record){
   const rows=document.getElementById('avg-rows'); rows.innerHTML='';
-  const averages=(summary&&summary.averages)||{};
   KEYS.forEach(({k,n})=>{
-    const avg=typeof averages[k]==='number'?averages[k]:0;
+    const score=typeof record[k]==='number'?record[k]:0;
     const row=document.createElement('div'); row.className='avg-row';
-    row.innerHTML='<span>'+n+'</span><span class="avg-bar"><i></i></span><b>'+avg.toFixed(1)+'</b>';
+    row.innerHTML='<span>'+n+'</span><span class="avg-bar"><i></i></span><b>'+score+'점</b>';
     rows.appendChild(row);
-    requestAnimationFrame(()=>{ row.querySelector('i').style.width=(avg/5*100)+'%'; });
+    requestAnimationFrame(()=>{ row.querySelector('i').style.width=(score/5*100)+'%'; });
   });
-  document.getElementById('avg-h').textContent='지금까지 모인 응답 '+((summary&&summary.count)||0)+'건의 평균';
+  document.getElementById('opinion-echo').textContent=record.opinion?'“'+record.opinion+'”':'';
 }
 document.getElementById('submit').addEventListener('click', async ()=>{
   const missing=KEYS.find(({k})=>!answers[k]);
@@ -873,7 +875,6 @@ document.getElementById('submit').addEventListener('click', async ()=>{
     age:document.getElementById('age').value, place:document.getElementById('place').value
   });
   const btn=document.getElementById('submit'); btn.disabled=true; btn.textContent='보내는 중…';
-  let summary={count:1,averages:Object.fromEntries(KEYS.map(({k})=>[k,record[k]]))};
   let failed=false;
   try{
     const res=await fetch('/api/responses',{
@@ -881,7 +882,7 @@ document.getElementById('submit').addEventListener('click', async ()=>{
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify(record)
     });
-    if(res.ok){ summary=await res.json(); } else { failed=true; }
+    if(!res.ok) failed=true;
   }catch(e){ failed=true; }
   btn.disabled=false; btn.textContent='응답 보내기';
   if(failed){
@@ -890,7 +891,7 @@ document.getElementById('submit').addEventListener('click', async ()=>{
     return;
   }
   document.getElementById('formview').style.display='none';
-  const done=document.getElementById('done'); done.classList.add('on'); renderAvg(summary);
+  const done=document.getElementById('done'); done.classList.add('on'); renderMine(record);
   done.scrollIntoView({behavior:reduce?'auto':'smooth',block:'center'});
 });
 </script>
