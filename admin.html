@@ -35,6 +35,10 @@ td.opinion{max-width:280px;white-space:pre-wrap}
 td.tags{white-space:nowrap}
 .scroll{overflow-x:auto}
 .empty{color:var(--soft);font-size:14px;padding:20px 0}
+.del-btn{padding:6px 12px;border-radius:6px;border:1px solid #C9756B;background:#fff;color:#B4443A;
+  font-size:12.5px;cursor:pointer;white-space:nowrap}
+.del-btn:hover{background:#B4443A;color:#fff}
+.del-btn:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -99,12 +103,45 @@ function renderTable(responses){
       +'<td class="opinion">'+esc(r.opinion)+'</td>'
       +'<td>'+esc(r.age)+'</td>'
       +'<td>'+esc(r.place)+'</td>'
+      +'<td><button class="del-btn" data-at="'+esc(r.at)+'">삭제</button></td>'
       +'</tr>';
   }).join('');
   tableEl.innerHTML='<table>'
-    +'<thead><tr><th>시간</th><th>디자인/편안함/마감/취지/만족</th><th>알게 된 경로</th><th>이용 목적</th><th>의견</th><th>연령대</th><th>장소</th></tr></thead>'
+    +'<thead><tr><th>시간</th><th>디자인/편안함/마감/취지/만족</th><th>알게 된 경로</th><th>이용 목적</th><th>의견</th><th>연령대</th><th>장소</th><th></th></tr></thead>'
     +'<tbody>'+rows+'</tbody></table>';
 }
+
+async function deleteResponse(at, btn){
+  const password=prompt('삭제 비밀번호를 입력하세요');
+  if(password===null) return;
+  const key=keyInput.value.trim();
+  btn.disabled=true;
+  try{
+    const res=await fetch('/api/responses?key='+encodeURIComponent(key), {
+      method:'DELETE',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({at, password})
+    });
+    if(!res.ok){
+      const body=await res.json().catch(()=>({}));
+      alert('삭제 실패: '+(body.error||('HTTP '+res.status)));
+      btn.disabled=false;
+      return;
+    }
+    const summary=await res.json();
+    renderSummary(summary);
+    btn.closest('tr').remove();
+  }catch(e){
+    alert('삭제 중 오류가 발생했습니다: '+e.message);
+    btn.disabled=false;
+  }
+}
+
+tableEl.addEventListener('click', e=>{
+  const btn=e.target.closest('.del-btn');
+  if(!btn) return;
+  deleteResponse(btn.dataset.at, btn);
+});
 
 async function load(){
   const key=keyInput.value.trim();
