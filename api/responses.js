@@ -1,4 +1,4 @@
-const redis = require("../lib/redis");
+const { getClient } = require("../lib/redis");
 const { SCORE_KEYS, sanitizeRecord } = require("../lib/validate");
 
 const AGGREGATE_KEY = "bench:aggregate";
@@ -17,14 +17,17 @@ async function handlePost(req, res) {
   if (!record) return res.status(400).json({ error: "invalid payload" });
   record.at = new Date().toISOString();
 
-  // HINCRBY is atomic per field, so concurrent submissions can't drop a
-  // count the way a read-modify-write on a plain value would.
-  const pipeline = redis.pipeline();
-  pipeline.hincrby(AGGREGATE_KEY, "count", 1);
-  for (const k of SCORE_KEYS) pipeline.hincrby(AGGREGATE_KEY, k, record[k]);
-  pipeline.rpush(RESPONSES_KEY, JSON.stringify(record));
-  pipeline.ltrim(RESPONSES_KEY, -MAX_RESPONSES, -1);
-  const results = await pipeline.exec();
+  const redis = await getClient();
+
+  // MULTI/EXEC batches these into one round trip; HINCRBY is atomic per
+  // field, so concurrent submissions can't drop a count the way a plain
+  // read-modify-write would.
+  const multi = redis.multi();
+  multi.hIncrBy(AGGREGATE_KEY, "count", 1);
+  for (const k of SCORE_KEYS) multi.hIncrBy(AGGREGATE_KEY, k, record[k]);
+  multi.rPush(RESPONSES_KEY, JSON.stringify(record));
+  multi.lTrim(RESPONSES_KEY, -MAX_RESPONSES, -1);
+  const results = await multi.exec();
 
   const counts = { count: results[0] };
   SCORE_KEYS.forEach((k, i) => {
@@ -34,14 +37,25 @@ async function handlePost(req, res) {
 }
 
 async function handleGet(req, res) {
-  const raw = (await redis.hgetall(AGGREGATE_KEY)) || {};
+  const redis = await getClient();
+
+  const raw = (await redis.hGetAll(AGGREGATE_KEY)) || {};
   const counts = { count: Number(raw.count) || 0 };
   for (const k of SCORE_KEYS) counts[k] = Number(raw[k]) || 0;
   const summary = summaryFromCounts(counts);
 
   const adminKey = process.env.ADMIN_KEY;
   if (adminKey && req.query.key === adminKey) {
-    const responses = (await redis.lrange(RESPONSES_KEY, 0, -1)) || [];
+    const rawResponses = (await redis.lRange(RESPONSES_KEY, 0, -1)) || [];
+    const responses = rawResponses
+      .map((r) => {
+        try {
+          return JSON.parse(r);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
     return res.status(200).json({ ...summary, responses });
   }
 

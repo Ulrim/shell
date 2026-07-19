@@ -10,7 +10,7 @@ just the current browser.
 - `index.html` — static page. On submit it `POST`s the answers to
   `/api/responses` and renders the returned running average.
 - `api/responses.js` — a Vercel serverless function backed by Redis
-  (`@upstash/redis`, via `lib/redis.js`).
+  (`redis` / node-redis, via `lib/redis.js`).
   - `POST /api/responses` validates the payload, atomically increments a
     `count`/per-question-sum hash (`HINCRBY`, so concurrent submissions
     can't drop a count), appends the raw record to a capped list (last
@@ -27,22 +27,22 @@ just the current browser.
    build command needed — `index.html` is served as-is and `api/` is
    auto-detected as serverless functions).
 2. Add a Redis store: Project → Storage → Marketplace Database Providers
-   → a Redis provider (e.g. Upstash) → connect it to the project. This
-   injects `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` (or the
-   legacy `KV_REST_API_URL` / `KV_REST_API_TOKEN` names — `lib/redis.js`
-   reads either) as environment variables automatically.
+   → **Redis** → connect it to the project. This injects a `REDIS_URL`
+   connection string as an environment variable automatically (Production
+   and Preview) — `lib/redis.js` reads it via `process.env.REDIS_URL`.
 3. (Optional) Add an environment variable `ADMIN_KEY` (Project →
    Settings → Environment Variables) with a secret value of your choice,
    to enable the admin-only raw-response export at
    `/api/responses?key=<ADMIN_KEY>`.
-4. Deploy.
+4. Deploy — or, if the Redis store was connected after the last deploy,
+   trigger a **Redeploy** so the function picks up the new env var.
 
 ## Local development
 
 ```
 npm install
 vercel link          # first time only, links this dir to a Vercel project
-vercel env pull       # pulls the Redis env vars from step 2 above into .env.local
+vercel env pull .env.development.local   # pulls REDIS_URL from step 2 above
 npm run dev           # vercel dev
 ```
 
