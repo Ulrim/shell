@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>만족도 조사 응답 — 관리자</title>
+<style>
+:root{
+  --cream:#F3F1EA; --paper:#FCFBF8; --forest:#3A5A34; --deep:#20321B;
+  --ink:#2B2F27; --soft:#5E6459; --line:#DCD9CD; --pale:#E3EAD8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--cream);color:var(--ink);font-family:-apple-system,system-ui,sans-serif;
+  line-height:1.55;padding:32px 20px 80px}
+.wrap{max-width:960px;margin:0 auto}
+h1{font-size:22px;color:var(--forest);margin-bottom:20px}
+.keybar{display:flex;gap:8px;margin-bottom:24px;flex-wrap:wrap}
+.keybar input{flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;
+  background:var(--paper);color:var(--ink);font-size:14px}
+.keybar button{padding:10px 18px;border-radius:8px;border:0;background:var(--forest);color:#fff;
+  font-size:14px;cursor:pointer}
+.keybar button:hover{background:var(--deep)}
+#msg{color:#B4443A;font-size:13.5px;margin-bottom:16px;display:none}
+#msg.on{display:block}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:28px}
+.stat{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+.stat span{display:block;font-size:12.5px;color:var(--soft);margin-bottom:6px}
+.stat b{font-size:20px;color:var(--forest)}
+table{width:100%;border-collapse:collapse;background:var(--paper);border:1px solid var(--line);
+  border-radius:10px;overflow:hidden;font-size:13px}
+th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--pale);color:var(--deep);font-weight:600;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.opinion{max-width:280px;white-space:pre-wrap}
+td.tags{white-space:nowrap}
+.scroll{overflow-x:auto}
+.empty{color:var(--soft);font-size:14px;padding:20px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>자원순환 쉼표 벤치 — 만족도 조사 응답</h1>
+  <div class="keybar">
+    <input type="password" id="key" placeholder="관리자 키 입력">
+    <button id="load">조회</button>
+  </div>
+  <p id="msg"></p>
+  <div id="summary" class="summary"></div>
+  <div class="scroll"><div id="table"></div></div>
+</div>
+
+<script>
+const KEYS=[{k:"design",n:"디자인"},{k:"comfort",n:"편안함"},{k:"finish",n:"마감·청결"},{k:"value",n:"재활용 취지"},{k:"again",n:"전반적 만족"}];
+const keyInput=document.getElementById('key');
+const msg=document.getElementById('msg');
+const summaryEl=document.getElementById('summary');
+const tableEl=document.getElementById('table');
+
+const saved=sessionStorage.getItem('bench_admin_key');
+if(saved) keyInput.value=saved;
+
+function showMsg(text){
+  msg.textContent=text;
+  msg.classList.toggle('on', !!text);
+}
+
+function renderSummary(summary){
+  summaryEl.innerHTML='';
+  const count=document.createElement('div');
+  count.className='stat';
+  count.innerHTML='<span>총 응답</span><b>'+(summary.count||0)+'건</b>';
+  summaryEl.appendChild(count);
+  KEYS.forEach(({k,n})=>{
+    const v=(summary.averages&&summary.averages[k])||0;
+    const el=document.createElement('div');
+    el.className='stat';
+    el.innerHTML='<span>'+n+'</span><b>'+v.toFixed(1)+'</b>';
+    summaryEl.appendChild(el);
+  });
+}
+
+function esc(s){
+  return String(s==null?'':s).replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+}
+
+function renderTable(responses){
+  if(!responses || !responses.length){
+    tableEl.innerHTML='<p class="empty">아직 원본 응답이 없거나, 이 키로는 원본 응답을 볼 수 없습니다.</p>';
+    return;
+  }
+  const rows=responses.slice().reverse().map(r=>{
+    const scores=KEYS.map(({k})=>r[k]!=null?r[k]:'-').join(' / ');
+    const at=r.at?new Date(r.at).toLocaleString('ko-KR'):'-';
+    return '<tr>'
+      +'<td>'+esc(at)+'</td>'
+      +'<td>'+esc(scores)+'</td>'
+      +'<td class="tags">'+esc((r.channel||[]).join(', '))+'</td>'
+      +'<td class="tags">'+esc((r.use||[]).join(', '))+'</td>'
+      +'<td class="opinion">'+esc(r.opinion)+'</td>'
+      +'<td>'+esc(r.age)+'</td>'
+      +'<td>'+esc(r.place)+'</td>'
+      +'</tr>';
+  }).join('');
+  tableEl.innerHTML='<table>'
+    +'<thead><tr><th>시간</th><th>디자인/편안함/마감/취지/만족</th><th>알게 된 경로</th><th>이용 목적</th><th>의견</th><th>연령대</th><th>장소</th></tr></thead>'
+    +'<tbody>'+rows+'</tbody></table>';
+}
+
+async function load(){
+  const key=keyInput.value.trim();
+  if(!key){ showMsg('관리자 키를 입력해 주세요.'); return; }
+  sessionStorage.setItem('bench_admin_key', key);
+  showMsg('');
+  summaryEl.innerHTML='';
+  tableEl.innerHTML='';
+  try{
+    const res=await fetch('/api/responses?key='+encodeURIComponent(key));
+    if(!res.ok){ showMsg('불러오지 못했습니다 (HTTP '+res.status+').'); return; }
+    const data=await res.json();
+    renderSummary(data);
+    if(data.responses===undefined){
+      showMsg('키가 올바르지 않거나 ADMIN_KEY가 설정되지 않아, 평균만 보이고 원본 응답은 볼 수 없습니다.');
+    }
+    renderTable(data.responses);
+  }catch(e){
+    showMsg('불러오는 중 오류가 발생했습니다: '+e.message);
+  }
+}
+
+document.getElementById('load').addEventListener('click', load);
+keyInput.addEventListener('keydown', e=>{ if(e.key==='Enter') load(); });
+
+if(saved) load();
+</script>
+</body>
+</html>
